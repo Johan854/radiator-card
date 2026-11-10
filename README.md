@@ -7,6 +7,11 @@ HACS → ⋮ → Dépôts personnalisés → `https://github.com/Johan854/radiat
 
 ## Exemple
 ```yaml
+# Exemple avec bandeau de défaut
+# alert_entities:
+#   - entity: binary_sensor.salle_de_bain_seche_serviette_defaut_conso_sans_commande
+#     name: Consommation sans commande
+#     message: Le SSR est peut-être en court-circuit, le thermostat mécanique reste la sécurité.
 type: custom:radiator-card
 entity: climate.unknown_product_1561_chauffage
 name: Sèche-serviette
@@ -29,6 +34,7 @@ image: https://exemple.fr/mon-appareil.jpg
 | `boost_entity` | | Interrupteur du Boost, mis en avant (la carte passe au rouge) |
 | `switches` | `[]` | Autres interrupteurs ; liste de noms d'entités ou d'objets `{entity, name, icon}`. Clic : bascule, appui long : détails |
 | `info_entities` | `[]` | Capteurs en tuiles (`entity`, `name`, `icon`) |
+| `alert_entities` | `[]` | Capteurs de défaut (`binary_sensor`) ; liste de noms d'entités ou d'objets `{entity, name, icon, message}`. Un bandeau rouge clignotant s'affiche sous le titre quand l'un est actif |
 | `image` | | Photo de l'appareil |
 | `image_mode` | `background` | `background` : photo estompée en fond, dessin animé conservé ; `replace` : la photo remplace le dessin |
 | `image_opacity` | `0.35` | Opacité de la photo de fond |

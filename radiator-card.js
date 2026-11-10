@@ -5,7 +5,7 @@
  * température ambiante, consigne réglable, modes, préréglages et interrupteurs (Boost, Programme, Absence...).
  * Style verre, thème clair/sombre automatique, éditeur visuel, textes en français.
  */
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -46,6 +46,7 @@ const DEFAULTS = {
   boost_entity: "", // switch du mode boost (mis en avant)
   switches: [], // autres interrupteurs : Programme, Absence, Présence...
   info_entities: [],
+  alert_entities: [], // capteurs de défaut (binary_sensor) : bandeau rouge quand l'un est actif
   image: "", image_mode: "background", image_opacity: 0.35,
   temp_step: 0, show_controls: true, show_modes: true, show_presets: true,
 };
@@ -90,7 +91,7 @@ class RadiatorCard extends HTMLElement {
   setConfig(config) {
     if (!config || !config.entity) throw new Error("radiator-card : « entity » (l'entité climate) est obligatoire");
     this._config = { ...DEFAULTS, ...config };
-    ["switches", "info_entities"].forEach((k) => { if (!Array.isArray(this._config[k])) this._config[k] = []; });
+    ["switches", "info_entities", "alert_entities"].forEach((k) => { if (!Array.isArray(this._config[k])) this._config[k] = []; });
     this._sig = "";
     if (this._hass) this._render();
   }
@@ -98,7 +99,7 @@ class RadiatorCard extends HTMLElement {
     this._hass = hass;
     if (!this._config) return;
     const c = this._config;
-    const ids = [c.entity, c.temperature_entity, c.target_entity, c.boost_entity, ...this._list("switches").map((x) => x.entity), ...this._list("info_entities").map((x) => x.entity)].filter(Boolean);
+    const ids = [c.entity, c.temperature_entity, c.target_entity, c.boost_entity, ...this._list("switches").map((x) => x.entity), ...this._list("info_entities").map((x) => x.entity), ...this._list("alert_entities").map((x) => x.entity)].filter(Boolean);
     const sig = ids.map((e) => { const s = hass.states[e]; return s ? s.state + "|" + JSON.stringify([s.attributes.hvac_action, s.attributes.temperature, s.attributes.current_temperature, s.attributes.preset_mode]) : "x"; }).join(";") + (this._isDark() ? "d" : "l") + "#" + this._pending;
     if (sig !== this._sig) { this._sig = sig; this._render(); }
   }
@@ -185,6 +186,13 @@ class RadiatorCard extends HTMLElement {
       return `<button class="tile" data-more="${esc(x.entity)}"><span class="tl"><ha-icon icon="${esc(x.icon || (s2 && s2.attributes.icon) || "mdi:information-outline")}"></ha-icon><span class="tn">${esc(x.name || short(s2, x.entity))}</span></span><span class="tv">${esc(v)}</span></button>`;
     }).join("");
 
+    /* défauts : bandeau rouge pour chaque capteur actif (on / problem) */
+    const alerts = this._list("alert_entities").map((x) => {
+      const s2 = h.states[x.entity];
+      if (!s2 || !["on", "problem"].includes(s2.state)) return "";
+      const nm = x.name || short(s2, x.entity);
+      return `<button class="alert" data-more="${esc(x.entity)}"><ha-icon icon="${esc(x.icon || "mdi:alert-octagon-outline")}"></ha-icon><span><b>${esc(nm)}</b>${x.message ? `<small>${esc(x.message)}</small>` : ""}</span></button>`;
+    }).join("");
     const okImg = c.image && !/^\s*(javascript|vbscript|data:text)/i.test(String(c.image)) && this._imgFailed !== c.image;
     const bg = okImg && c.image_mode !== "replace" ? `<img class="bgimg" src="${esc(c.image)}" alt="" loading="lazy" style="opacity:${isNum(c.image_opacity) ? Math.max(0, Math.min(1, Number(c.image_opacity))) : 0.35}">` : "";
     const art = okImg && c.image_mode === "replace" ? `<div class="art photo"><img src="${esc(c.image)}" alt="${esc(name)}"></div>` : `<div class="art">${artSvg(c.appliance === "radiator" ? "radiator" : "towel", mode, this._uid)}</div>`;
@@ -222,11 +230,15 @@ class RadiatorCard extends HTMLElement {
       .seg { display:flex; flex-wrap:wrap; gap:.3em; } .seg button { padding:.35em .8em; border-radius:2em; font-size:.8em; font-weight:600; background:var(--rd-fill); border:1px solid var(--rd-fill-b); } .seg button.sel { background:var(--rd-text); } ha-card.dark .seg button.sel { color:#1b1e32; } ha-card.light .seg button.sel { color:#fff; }
       .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(9em,1fr)); gap:.6em; } .tile { display:flex; flex-direction:column; gap:.35em; padding:.7em .85em; border-radius:1em; background:var(--rd-glass); border:1px solid var(--rd-glass-b); min-width:0; }
       .tl { display:flex; align-items:center; gap:.45em; font-size:.74em; color:var(--rd-muted); } .tn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .tv { font-size:1.2em; font-weight:650; }
+      .alert { display:flex; align-items:center; gap:.7em; padding:.7em .9em; border-radius:1em; color:var(--rd-boost); background:color-mix(in srgb, var(--rd-boost) 14%, transparent); border:1px solid color-mix(in srgb, var(--rd-boost) 55%, transparent); animation:rd-alert 2s ease-in-out infinite; } .alert ha-icon { --mdc-icon-size:1.6em; }
+      .alert span { display:flex; flex-direction:column; gap:.15em; min-width:0; } .alert b { font-size:.9em; } .alert small { font-size:.78em; color:var(--rd-text); opacity:.85; }
+      @keyframes rd-alert { 50% { border-color:var(--rd-boost); box-shadow:0 0 1.2em color-mix(in srgb, var(--rd-boost) 35%, transparent); } }
       @container (max-width:300px) { .panel { grid-template-columns:1fr; } }
-      @media (prefers-reduced-motion: reduce) { .glow, .wv { animation:none; } }
+      @media (prefers-reduced-motion: reduce) { .glow, .wv, .alert { animation:none; } }
     </style>
     <ha-card class="${dark ? "dark" : "light"}" style="${gvStyle(c, dark)}">
       <div class="head"><b>${esc(name)}</b><span class="state ${mode}">${esc(stateLabel)}</span></div>
+      ${alerts}
       <div class="panel ${mode}">${bg}${art}
         <div class="read">
           <div><div class="lbl">Température</div><button class="big" data-more="${esc(c.temperature_entity || c.entity)}">${esc(cur)}<small>${esc(unit)}</small></button></div>
@@ -254,12 +266,12 @@ class RadiatorCard extends HTMLElement {
 
 /* ---------- Éditeur visuel ---------- */
 const LABELS = { ...GV_LABELS, entity: "Chauffage (entité climate)", name: "Nom (facultatif)", appliance: "Type d'appareil", temperature_entity: "Température ambiante (facultatif)", target_entity: "Consigne : number / input_number (facultatif)",
-  boost_entity: "Mode Boost (interrupteur)", switches: "Autres interrupteurs (Programme, Absence, Présence...)", info_entities: "Capteurs à afficher", image: "Photo de l'appareil (URL)", image_mode: "Affichage de la photo", image_opacity: "Opacité de la photo",
+  boost_entity: "Mode Boost (interrupteur)", switches: "Autres interrupteurs (Programme, Absence, Présence...)", info_entities: "Capteurs à afficher", alert_entities: "Capteurs de défaut (bandeau rouge quand actif)", image: "Photo de l'appareil (URL)", image_mode: "Affichage de la photo", image_opacity: "Opacité de la photo",
   temp_step: "Pas de la consigne (0 = automatique)", show_controls: "Afficher les commandes", show_modes: "Afficher les modes", show_presets: "Afficher les préréglages", theme: "Thème" };
 class RadiatorCardEditor extends HTMLElement {
-  setConfig(config) { this._config = { ...DEFAULTS, ...config }; this._keep = { switches: (config.switches || []).filter((x) => x && typeof x === "object"), info_entities: (config.info_entities || []).filter((x) => x && typeof x === "object") }; if (!this._form) this._build(); else this._form.data = this._data(); }
+  setConfig(config) { this._config = { ...DEFAULTS, ...config }; this._keep = { switches: (config.switches || []).filter((x) => x && typeof x === "object"), info_entities: (config.info_entities || []).filter((x) => x && typeof x === "object"), alert_entities: (config.alert_entities || []).filter((x) => x && typeof x === "object") }; if (!this._form) this._build(); else this._form.data = this._data(); }
   set hass(h) { this._hass = h; if (this._form) this._form.hass = h; }
-  _data() { const m = (l) => (l || []).map((i) => (typeof i === "string" ? i : i.entity)); return { ...this._config, switches: m(this._config.switches), info_entities: m(this._config.info_entities) }; }
+  _data() { const m = (l) => (l || []).map((i) => (typeof i === "string" ? i : i.entity)); return { ...this._config, switches: m(this._config.switches), info_entities: m(this._config.info_entities), alert_entities: m(this._config.alert_entities) }; }
   _build() {
     const el = document.createElement("ha-form");
     el.hass = this._hass; el.data = this._data(); el.computeLabel = (s) => LABELS[s.name] || s.name;
@@ -271,6 +283,7 @@ class RadiatorCardEditor extends HTMLElement {
       { name: "boost_entity", selector: { entity: { domain: ["switch", "input_boolean"] } } },
       { name: "switches", selector: { entity: { multiple: true, domain: ["switch", "input_boolean"] } } },
       { name: "info_entities", selector: { entity: { multiple: true } } },
+      { name: "alert_entities", selector: { entity: { multiple: true, domain: "binary_sensor" } } },
       { name: "image", selector: { text: {} } },
       { type: "grid", name: "", schema: [{ name: "image_mode", selector: { select: { mode: "dropdown", options: [{ value: "background", label: "En arrière-plan (comme les électroménagers)" }, { value: "replace", label: "À la place du dessin" }] } } }, { name: "image_opacity", selector: { number: { min: 0.05, max: 1, step: 0.05, mode: "slider" } } }] },
       { type: "grid", name: "", schema: [{ name: "temp_step", selector: { number: { min: 0, max: 5, step: 0.1, mode: "box" } } }, { name: "theme", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" }] } } }] },
@@ -280,7 +293,7 @@ class RadiatorCardEditor extends HTMLElement {
     el.addEventListener("value-changed", (ev) => {
       ev.stopPropagation();
       const cfg = { ...ev.detail.value };
-      ["switches", "info_entities"].forEach((k) => { cfg[k] = (cfg[k] || []).map((id) => (this._keep[k].find((x) => x.entity === id)) || id); });
+      ["switches", "info_entities", "alert_entities"].forEach((k) => { cfg[k] = (cfg[k] || []).map((id) => (this._keep[k].find((x) => x.entity === id)) || id); });
       ["temperature_entity", "target_entity", "boost_entity", "image"].forEach((k) => { if (!cfg[k]) delete cfg[k]; });
       this._config = cfg;
       this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg }, bubbles: true, composed: true }));
