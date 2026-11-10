@@ -32,6 +32,7 @@ image: https://exemple.fr/mon-appareil.jpg
 | `temperature_entity` | | Température ambiante (sinon `current_temperature`) |
 | `target_entity` | | `number` / `input_number` de consigne (sinon la consigne du `climate`) |
 | `boost_entity` | | Interrupteur du Boost, mis en avant (la carte passe au rouge) |
+| `mode_entity` | | `select` / `input_select` des modes : un bouton par option (Arrêt en premier), icônes reconnues par le nom (Arrêt, Hors-gel, Éco, Confort...) |
 | `boost_duration_entity` | | `number` / `input_number` de durée du boost, réglable par − / + sur la carte |
 | `switches` | `[]` | Autres interrupteurs ; liste de noms d'entités ou d'objets `{entity, name, icon}`. Clic : bascule, appui long : détails |
 | `info_entities` | `[]` | Capteurs en tuiles (`entity`, `name`, `icon`) |
