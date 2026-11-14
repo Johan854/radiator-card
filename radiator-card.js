@@ -5,7 +5,7 @@
  * température ambiante, consigne réglable, modes, préréglages et interrupteurs (Boost, Programme, Absence...).
  * Style verre, thème clair/sombre automatique, éditeur visuel, textes en français.
  */
-const CARD_VERSION = "1.3.0";
+const CARD_VERSION = "1.4.0";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -46,6 +46,7 @@ const DEFAULTS = {
   boost_entity: "", // switch du mode boost (mis en avant)
   mode_entity: "", // select / input_select des modes (Arrêt, Hors-gel, Éco, Confort...) : boutons sur la carte
   boost_duration_entity: "", // number / input_number de durée du boost (réglable sur la carte)
+  season_entity: "", // commutateur de puissance (binary_sensor...) : on = saison (flocon), off = mi-saison (soleil/flocon)
   switches: [], // autres interrupteurs : Programme, Absence, Présence...
   info_entities: [],
   alert_entities: [], // capteurs de défaut (binary_sensor) : bandeau rouge quand l'un est actif
@@ -104,7 +105,7 @@ class RadiatorCard extends HTMLElement {
     this._hass = hass;
     if (!this._config) return;
     const c = this._config;
-    const ids = [c.entity, c.temperature_entity, c.target_entity, c.boost_entity, c.boost_duration_entity, c.mode_entity, ...this._list("switches").map((x) => x.entity), ...this._list("info_entities").map((x) => x.entity), ...this._list("alert_entities").map((x) => x.entity)].filter(Boolean);
+    const ids = [c.entity, c.temperature_entity, c.target_entity, c.boost_entity, c.boost_duration_entity, c.mode_entity, c.season_entity, ...this._list("switches").map((x) => x.entity), ...this._list("info_entities").map((x) => x.entity), ...this._list("alert_entities").map((x) => x.entity)].filter(Boolean);
     const sig = ids.map((e) => { const s = hass.states[e]; return s ? s.state + "|" + JSON.stringify([s.attributes.hvac_action, s.attributes.temperature, s.attributes.current_temperature, s.attributes.preset_mode]) : "x"; }).join(";") + (this._isDark() ? "d" : "l") + "#" + this._pending;
     if (sig !== this._sig) { this._sig = sig; this._render(); }
   }
@@ -213,6 +214,10 @@ class RadiatorCard extends HTMLElement {
       const nm = x.name || short(s2, x.entity);
       return `<button class="alert" data-more="${esc(x.entity)}"><ha-icon icon="${esc(x.icon || "mdi:alert-octagon-outline")}"></ha-icon><span><b>${esc(nm)}</b>${x.message ? `<small>${esc(x.message)}</small>` : ""}</span></button>`;
     }).join("");
+    /* commutateur de puissance : flocon = saison (pleine puissance), soleil/flocon = mi-saison */
+    const seS = c.season_entity ? h.states[c.season_entity] : null;
+    const season = seS && !bad(seS) ? (["on", "true", "home"].includes(seS.state) ? ["saison", "mdi:snowflake", "Saison (pleine puissance)"] : ["mi", "mdi:sun-snowflake", "Mi-saison (demi-puissance)"]) : null;
+    const seasonHtml = season ? `<button class="season ${season[0]}" data-more="${esc(c.season_entity)}" title="${esc(season[2])}" aria-label="${esc(season[2])}"><ha-icon icon="${season[1]}"></ha-icon></button>` : "";
     const okImg = c.image && !/^\s*(javascript|vbscript|data:text)/i.test(String(c.image)) && this._imgFailed !== c.image;
     const bg = okImg && c.image_mode !== "replace" ? `<img class="bgimg" src="${esc(c.image)}" alt="" loading="lazy" style="opacity:${isNum(c.image_opacity) ? Math.max(0, Math.min(1, Number(c.image_opacity))) : 0.35}">` : "";
     const art = okImg && c.image_mode === "replace" ? `<div class="art photo"><img src="${esc(c.image)}" alt="${esc(name)}"></div>` : `<div class="art">${artSvg(c.appliance === "radiator" ? "radiator" : "towel", mode, this._uid)}</div>`;
@@ -225,6 +230,9 @@ class RadiatorCard extends HTMLElement {
       button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0; text-align:left; -webkit-tap-highlight-color:transparent; }
       ha-icon { --mdc-icon-size:1.2em; flex:none; }
       .head { display:flex; flex-direction:column; gap:3px; } .head b { font-size:1.1em; font-weight:650; }
+      .ttl { display:flex; align-items:center; justify-content:space-between; gap:.5em; }
+      .season { display:grid; place-items:center; width:2em; height:2em; border-radius:50%; background:var(--rd-fill); border:1px solid var(--rd-fill-b); flex:none; } .season ha-icon { --mdc-icon-size:1.25em; }
+      .season.saison { color:#4fb3f0; } .season.mi { color:#f0b429; }
       .state { display:flex; align-items:center; gap:.5em; font-size:.85em; font-weight:600; color:var(--rd-off); } .state::before { content:""; width:.6em; height:.6em; border-radius:50%; background:currentColor; box-shadow:0 0 .6em currentColor; }
       .state.heat, .state.idle { color:var(--rd-hot); } .state.idle { color:var(--rd-ok); } .state.boost { color:var(--rd-boost); }
       .panel { position:relative; overflow:hidden; display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:12px; align-items:center; padding:14px; border-radius:18px; background:var(--rd-glass); border:1px solid var(--rd-glass-b); -webkit-backdrop-filter:blur(18px) saturate(140%); backdrop-filter:blur(18px) saturate(140%); }
@@ -260,7 +268,7 @@ class RadiatorCard extends HTMLElement {
       @media (prefers-reduced-motion: reduce) { .glow, .wv, .alert { animation:none; } }
     </style>
     <ha-card class="${dark ? "dark" : "light"}" style="${gvStyle(c, dark)}">
-      <div class="head"><b>${esc(name)}</b><span class="state ${mode}">${esc(stateLabel)}</span></div>
+      <div class="head"><div class="ttl"><b>${esc(name)}</b>${seasonHtml}</div><span class="state ${mode}">${esc(stateLabel)}</span></div>
       ${alerts}
       <div class="panel ${mode}">${bg}${art}
         <div class="read">
@@ -299,7 +307,7 @@ class RadiatorCard extends HTMLElement {
 
 /* ---------- Éditeur visuel ---------- */
 const LABELS = { ...GV_LABELS, entity: "Chauffage (entité climate)", name: "Nom (facultatif)", appliance: "Type d'appareil", temperature_entity: "Température ambiante (facultatif)", target_entity: "Consigne : number / input_number (facultatif)",
-  boost_entity: "Mode Boost (interrupteur)", mode_entity: "Modes : select / input_select (boutons Arrêt, Hors-gel, Éco, Confort...)", boost_duration_entity: "Durée du boost : number / input_number (facultatif)", switches: "Autres interrupteurs (Programme, Absence, Présence...)", info_entities: "Capteurs à afficher", alert_entities: "Capteurs de défaut (bandeau rouge quand actif)", image: "Photo de l'appareil (URL)", image_mode: "Affichage de la photo", image_opacity: "Opacité de la photo",
+  boost_entity: "Mode Boost (interrupteur)", mode_entity: "Modes : select / input_select (boutons Arrêt, Hors-gel, Éco, Confort...)", boost_duration_entity: "Durée du boost : number / input_number (facultatif)", season_entity: "Commutateur de puissance : allumé = saison (flocon), éteint = mi-saison (soleil/flocon)", switches: "Autres interrupteurs (Programme, Absence, Présence...)", info_entities: "Capteurs à afficher", alert_entities: "Capteurs de défaut (bandeau rouge quand actif)", image: "Photo de l'appareil (URL)", image_mode: "Affichage de la photo", image_opacity: "Opacité de la photo",
   temp_step: "Pas de la consigne (0 = automatique)", show_controls: "Afficher les commandes", show_modes: "Afficher les modes", show_presets: "Afficher les préréglages", theme: "Thème" };
 class RadiatorCardEditor extends HTMLElement {
   setConfig(config) { this._config = { ...DEFAULTS, ...config }; this._keep = { switches: (config.switches || []).filter((x) => x && typeof x === "object"), info_entities: (config.info_entities || []).filter((x) => x && typeof x === "object"), alert_entities: (config.alert_entities || []).filter((x) => x && typeof x === "object") }; if (!this._form) this._build(); else this._form.data = this._data(); }
@@ -316,6 +324,7 @@ class RadiatorCardEditor extends HTMLElement {
       { name: "boost_entity", selector: { entity: { domain: ["switch", "input_boolean"] } } },
       { name: "mode_entity", selector: { entity: { domain: ["select", "input_select"] } } },
       { name: "boost_duration_entity", selector: { entity: { domain: ["number", "input_number"] } } },
+      { name: "season_entity", selector: { entity: { domain: ["binary_sensor", "input_boolean", "switch"] } } },
       { name: "switches", selector: { entity: { multiple: true, domain: ["switch", "input_boolean"] } } },
       { name: "info_entities", selector: { entity: { multiple: true } } },
       { name: "alert_entities", selector: { entity: { multiple: true, domain: "binary_sensor" } } },
@@ -329,7 +338,7 @@ class RadiatorCardEditor extends HTMLElement {
       ev.stopPropagation();
       const cfg = { ...ev.detail.value };
       ["switches", "info_entities", "alert_entities"].forEach((k) => { cfg[k] = (cfg[k] || []).map((id) => (this._keep[k].find((x) => x.entity === id)) || id); });
-      ["temperature_entity", "target_entity", "boost_entity", "boost_duration_entity", "mode_entity", "image"].forEach((k) => { if (!cfg[k]) delete cfg[k]; });
+      ["temperature_entity", "target_entity", "boost_entity", "boost_duration_entity", "mode_entity", "season_entity", "image"].forEach((k) => { if (!cfg[k]) delete cfg[k]; });
       this._config = cfg;
       this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg }, bubbles: true, composed: true }));
     });

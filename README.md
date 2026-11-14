@@ -7,6 +7,8 @@ HACS → ⋮ → Dépôts personnalisés → `https://github.com/Johan854/radiat
 
 ## Exemple
 ```yaml
+# Exemple avec commutateur de puissance (saison / mi-saison)
+# season_entity: binary_sensor.salle_de_bain_seche_serviette_position_700_w
 # Exemple avec bandeau de défaut
 # alert_entities:
 #   - entity: binary_sensor.salle_de_bain_seche_serviette_defaut_conso_sans_commande
@@ -34,6 +36,7 @@ image: https://exemple.fr/mon-appareil.jpg
 | `boost_entity` | | Interrupteur du Boost, mis en avant (la carte passe au rouge) |
 | `mode_entity` | | `select` / `input_select` des modes : un bouton par option (Arrêt en premier), icônes reconnues par le nom (Arrêt, Hors-gel, Éco, Confort...) |
 | `boost_duration_entity` | | `number` / `input_number` de durée du boost, réglable par − / + sur la carte |
+| `season_entity` | | Commutateur de puissance (`binary_sensor`, `input_boolean` ou `switch`) : symbole à côté du titre, flocon = saison (allumé, pleine puissance), soleil/flocon = mi-saison (éteint, demi-puissance) |
 | `switches` | `[]` | Autres interrupteurs ; liste de noms d'entités ou d'objets `{entity, name, icon}`. Clic : bascule, appui long : détails |
 | `info_entities` | `[]` | Capteurs en tuiles (`entity`, `name`, `icon`) |
 | `alert_entities` | `[]` | Capteurs de défaut (`binary_sensor`) ; liste de noms d'entités ou d'objets `{entity, name, icon, message}`. Un bandeau rouge clignotant s'affiche sous le titre quand l'un est actif |
