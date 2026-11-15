@@ -5,7 +5,7 @@
  * température ambiante, consigne réglable, modes, préréglages et interrupteurs (Boost, Programme, Absence...).
  * Style verre, thème clair/sombre automatique, éditeur visuel, textes en français.
  */
-const CARD_VERSION = "1.4.0";
+const CARD_VERSION = "1.5.0";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -46,6 +46,7 @@ const DEFAULTS = {
   boost_entity: "", // switch du mode boost (mis en avant)
   mode_entity: "", // select / input_select des modes (Arrêt, Hors-gel, Éco, Confort...) : boutons sur la carte
   boost_duration_entity: "", // number / input_number de durée du boost (réglable sur la carte)
+  heat_level_entity: "", // capteur du taux de chauffe (%) : « Chauffe » dès qu'il dépasse 0, sinon « En attente »
   season_entity: "", // commutateur de puissance (binary_sensor...) : on = saison (flocon), off = mi-saison (soleil/flocon)
   switches: [], // autres interrupteurs : Programme, Absence, Présence...
   info_entities: [],
@@ -105,7 +106,7 @@ class RadiatorCard extends HTMLElement {
     this._hass = hass;
     if (!this._config) return;
     const c = this._config;
-    const ids = [c.entity, c.temperature_entity, c.target_entity, c.boost_entity, c.boost_duration_entity, c.mode_entity, c.season_entity, ...this._list("switches").map((x) => x.entity), ...this._list("info_entities").map((x) => x.entity), ...this._list("alert_entities").map((x) => x.entity)].filter(Boolean);
+    const ids = [c.entity, c.temperature_entity, c.target_entity, c.boost_entity, c.boost_duration_entity, c.mode_entity, c.season_entity, c.heat_level_entity, ...this._list("switches").map((x) => x.entity), ...this._list("info_entities").map((x) => x.entity), ...this._list("alert_entities").map((x) => x.entity)].filter(Boolean);
     const sig = ids.map((e) => { const s = hass.states[e]; return s ? s.state + "|" + JSON.stringify([s.attributes.hvac_action, s.attributes.temperature, s.attributes.current_temperature, s.attributes.preset_mode]) : "x"; }).join(";") + (this._isDark() ? "d" : "l") + "#" + this._pending;
     if (sig !== this._sig) { this._sig = sig; this._render(); }
   }
@@ -156,9 +157,13 @@ class RadiatorCard extends HTMLElement {
     const unknown = bad(st);
     const boostS = c.boost_entity ? h.states[c.boost_entity] : null;
     const boostOn = !!(boostS && boostS.state === "on");
-    const heating = !unknown && st.state !== "off" && (a.hvac_action === "heating" || (!a.hvac_action && st.state === "heat"));
+    /* taux de chauffe (%) : s'il est configuré, il décide seul de l'état Chauffe / En attente */
+    const lvS = c.heat_level_entity ? h.states[c.heat_level_entity] : null;
+    const lvOk = !!(lvS && !bad(lvS) && isNum(lvS.state));
+    const lvOn = lvOk && Number(lvS.state) > 0;
+    const heating = !unknown && st.state !== "off" && (lvOk ? lvOn : (a.hvac_action === "heating" || (!a.hvac_action && st.state === "heat")));
     const mode = unknown ? "off" : st.state === "off" ? "off" : boostOn ? "boost" : heating ? "heat" : "idle";
-    const stateLabel = unknown ? "Indisponible" : st.state === "off" ? "Arrêt" : boostOn ? "Boost" : a.hvac_action ? tr(ACTIONS, a.hvac_action) : tr(MODES, st.state);
+    const stateLabel = unknown ? "Indisponible" : st.state === "off" ? "Arrêt" : boostOn ? "Boost" : lvOk ? (lvOn ? "Chauffe" : "En attente") : a.hvac_action ? tr(ACTIONS, a.hvac_action) : tr(MODES, st.state);
     const name = c.name || (st && a.friendly_name) || "Chauffage";
     const unit = (h.config && h.config.unit_system && h.config.unit_system.temperature) || "°C";
     const ts = c.temperature_entity ? h.states[c.temperature_entity] : null;
@@ -307,7 +312,7 @@ class RadiatorCard extends HTMLElement {
 
 /* ---------- Éditeur visuel ---------- */
 const LABELS = { ...GV_LABELS, entity: "Chauffage (entité climate)", name: "Nom (facultatif)", appliance: "Type d'appareil", temperature_entity: "Température ambiante (facultatif)", target_entity: "Consigne : number / input_number (facultatif)",
-  boost_entity: "Mode Boost (interrupteur)", mode_entity: "Modes : select / input_select (boutons Arrêt, Hors-gel, Éco, Confort...)", boost_duration_entity: "Durée du boost : number / input_number (facultatif)", season_entity: "Commutateur de puissance : allumé = saison (flocon), éteint = mi-saison (soleil/flocon)", switches: "Autres interrupteurs (Programme, Absence, Présence...)", info_entities: "Capteurs à afficher", alert_entities: "Capteurs de défaut (bandeau rouge quand actif)", image: "Photo de l'appareil (URL)", image_mode: "Affichage de la photo", image_opacity: "Opacité de la photo",
+  boost_entity: "Mode Boost (interrupteur)", mode_entity: "Modes : select / input_select (boutons Arrêt, Hors-gel, Éco, Confort...)", boost_duration_entity: "Durée du boost : number / input_number (facultatif)", heat_level_entity: "Taux de chauffe en % (facultatif) : « Chauffe » dès qu'il dépasse 0", season_entity: "Commutateur de puissance : allumé = saison (flocon), éteint = mi-saison (soleil/flocon)", switches: "Autres interrupteurs (Programme, Absence, Présence...)", info_entities: "Capteurs à afficher", alert_entities: "Capteurs de défaut (bandeau rouge quand actif)", image: "Photo de l'appareil (URL)", image_mode: "Affichage de la photo", image_opacity: "Opacité de la photo",
   temp_step: "Pas de la consigne (0 = automatique)", show_controls: "Afficher les commandes", show_modes: "Afficher les modes", show_presets: "Afficher les préréglages", theme: "Thème" };
 class RadiatorCardEditor extends HTMLElement {
   setConfig(config) { this._config = { ...DEFAULTS, ...config }; this._keep = { switches: (config.switches || []).filter((x) => x && typeof x === "object"), info_entities: (config.info_entities || []).filter((x) => x && typeof x === "object"), alert_entities: (config.alert_entities || []).filter((x) => x && typeof x === "object") }; if (!this._form) this._build(); else this._form.data = this._data(); }
@@ -324,6 +329,7 @@ class RadiatorCardEditor extends HTMLElement {
       { name: "boost_entity", selector: { entity: { domain: ["switch", "input_boolean"] } } },
       { name: "mode_entity", selector: { entity: { domain: ["select", "input_select"] } } },
       { name: "boost_duration_entity", selector: { entity: { domain: ["number", "input_number"] } } },
+      { name: "heat_level_entity", selector: { entity: { domain: ["sensor", "number", "input_number"] } } },
       { name: "season_entity", selector: { entity: { domain: ["binary_sensor", "input_boolean", "switch"] } } },
       { name: "switches", selector: { entity: { multiple: true, domain: ["switch", "input_boolean"] } } },
       { name: "info_entities", selector: { entity: { multiple: true } } },
@@ -338,7 +344,7 @@ class RadiatorCardEditor extends HTMLElement {
       ev.stopPropagation();
       const cfg = { ...ev.detail.value };
       ["switches", "info_entities", "alert_entities"].forEach((k) => { cfg[k] = (cfg[k] || []).map((id) => (this._keep[k].find((x) => x.entity === id)) || id); });
-      ["temperature_entity", "target_entity", "boost_entity", "boost_duration_entity", "mode_entity", "season_entity", "image"].forEach((k) => { if (!cfg[k]) delete cfg[k]; });
+      ["temperature_entity", "target_entity", "boost_entity", "boost_duration_entity", "mode_entity", "season_entity", "heat_level_entity", "image"].forEach((k) => { if (!cfg[k]) delete cfg[k]; });
       this._config = cfg;
       this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg }, bubbles: true, composed: true }));
     });
