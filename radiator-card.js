@@ -5,7 +5,7 @@
  * température ambiante, consigne réglable, modes, préréglages et interrupteurs (Boost, Programme, Absence...).
  * Style verre, thème clair/sombre automatique, éditeur visuel, textes en français.
  */
-const CARD_VERSION = "1.5.0";
+const CARD_VERSION = "1.5.1";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -251,7 +251,7 @@ class RadiatorCard extends HTMLElement {
       .read { display:flex; flex-direction:column; gap:12px; min-width:0; }
       .lbl { font-size:.72em; text-transform:uppercase; letter-spacing:.08em; color:var(--rd-muted); }
       .big { font-size:2.6em; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; } .big small { font-size:.4em; font-weight:600; opacity:.7; margin-left:.15em; }
-      .set { display:flex; align-items:center; gap:.5em; } .set .val { font-size:1.5em; font-weight:650; min-width:3.4em; text-align:center; font-variant-numeric:tabular-nums; } .set .val small { font-size:.55em; opacity:.7; }
+      .set { display:flex; align-items:center; gap:.5em; } .set .val { cursor:pointer; font-size:1.5em; font-weight:650; min-width:3.4em; text-align:center; font-variant-numeric:tabular-nums; } .set .val small { font-size:.55em; opacity:.7; }
       .step { display:grid; place-items:center; width:2.4em; height:2.4em; border-radius:50%; background:var(--rd-fill); border:1px solid var(--rd-fill-b); font-size:1.1em; font-weight:700; touch-action:manipulation; } .step:active { background:var(--rd-fill-b); }
       .sws { display:flex; flex-wrap:wrap; gap:.5em; }
       .sw { display:flex; align-items:center; gap:.45em; padding:.55em .95em; border-radius:2em; font-size:.82em; font-weight:600; background:var(--rd-fill); border:1px solid var(--rd-fill-b); color:var(--rd-muted); } .sw:disabled { opacity:.4; cursor:default; }
@@ -278,7 +278,7 @@ class RadiatorCard extends HTMLElement {
       <div class="panel ${mode}">${bg}${art}
         <div class="read">
           <div><div class="lbl">Température</div><button class="big" data-more="${esc(c.temperature_entity || c.entity)}">${esc(cur)}<small>${esc(unit)}</small></button></div>
-          ${tval !== null ? `<div><div class="lbl">Consigne</div><div class="set">${c.show_controls ? `<button class="step" data-action="down" aria-label="Baisser">−</button>` : ""}<span class="val">${esc(this._fmt(tval))}<small>${esc(unit)}</small></span>${c.show_controls ? `<button class="step" data-action="up" aria-label="Augmenter">+</button>` : ""}</div></div>` : ""}
+          ${tval !== null ? `<div><div class="lbl">Consigne</div><div class="set">${c.show_controls ? `<button class="step" data-action="down" aria-label="Baisser">−</button>` : ""}<span class="val" data-more="${esc(c.entity)}" title="Ouvrir le thermostat">${esc(this._fmt(tval))}<small>${esc(unit)}</small></span>${c.show_controls ? `<button class="step" data-action="up" aria-label="Augmenter">+</button>` : ""}</div></div>` : ""}
         </div>
       </div>
       ${swHtml ? `<div class="sws">${swHtml}</div>` : ""}
